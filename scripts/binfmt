@@ -1,0 +1,4 @@
+#!/bin/bash
+exec > /tmp/binfmt.log 2>&1
+set -x
+docker run --privileged --rm tonistiigi/binfmt --install all
