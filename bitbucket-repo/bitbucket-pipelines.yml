@@ -1,0 +1,44 @@
+aliases:
+  - &initialize-application |
+    export PROJECT_NAME=gnu96
+    export APP_NAME=bitbucket-runner-go
+    export BUILDX_VERSION=0.11.2
+  - &initialize-dockerhub |
+    export DOCKER_HUB_ID=${DOCKER_HUB_ID}
+    export DOCKER_HUB_PSW=${DOCKER_HUB_PSW}
+
+definitions:
+  services:
+    docker: # can only be used with a self-hosted runner
+      image: docker:20.10.7-dind # docker:dind
+      memory: 2048
+
+  steps:
+    - step: &multi-platform-docker-build
+        runs-on:
+          - 'self.hosted'
+          - 'linux'
+          - 'docker'
+        name: Build Docker image
+        caches:
+          - docker
+        script:
+          - *initialize-application
+          - *initialize-dockerhub        
+          - wget https://github.com/docker/buildx/releases/download/v${BUILDX_VERSION}/buildx-v${BUILDX_VERSION}.linux-amd64
+          - mv buildx-v${BUILDX_VERSION}.linux-amd64 buildx
+          - mkdir -p ~/.docker/cli-plugins
+          - mv buildx ~/.docker/cli-plugins/docker-buildx
+          - chmod a+x ~/.docker/cli-plugins/docker-buildx
+          - docker buildx create --name mybuilder --bootstrap --use
+          - docker buildx ls
+          - docker login -u ${DOCKER_HUB_ID} -p ${DOCKER_HUB_PSW}
+          - export IMAGE_NAME=${PROJECT_NAME}/${APP_NAME}:${BITBUCKET_BUILD_NUMBER}
+          - docker buildx build --platform linux/amd64,linux/arm64/v7 -t ${IMAGE_NAME} --push .
+        services:
+          - docker
+
+pipelines:
+  custom: # Pipelines that can only be triggered manually
+    dockerbuild:
+      - step: *multi-platform-docker-build
